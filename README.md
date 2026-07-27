@@ -40,7 +40,7 @@ This design keeps routing simple by:
 ### 1. One-line install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AlirezaSayyari/GREX/main/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/runovelhq/grex/main/bootstrap.sh | sudo bash
 ```
 
 ### 2. Install required utilities
@@ -87,8 +87,8 @@ also required by the one-line bootstrap installer.
 ### 3. Alternative manual install
 
 ```bash
-git clone https://github.com/AlirezaSayyari/GREX.git
-cd GREX
+git clone https://github.com/runovelhq/grex.git
+cd grex
 sudo bash install.sh
 sudo bash setup.sh
 ```
@@ -497,6 +497,26 @@ upgrade` downloads the latest published version, runs `install.sh`, preserves
 `/etc/gre-tunnel.conf`, and does not run the setup wizard again.
 If you run upgrade from inside the interactive menu, exit and run `sudo grex`
 again so the new manager process and menu are loaded.
+
+### Repository migration
+
+GREX is moving from `AlirezaSayyari/GREX` to `runovelhq/grex`. Existing
+installations should migrate through the normal upgrade command:
+
+```bash
+sudo grex upgrade
+```
+
+The upgrade preserves `/etc/gre-tunnel.conf`. The runtime path `/srv/GREX`, the
+`sudo grex` command, and the `gre-tunnel` systemd service name remain unchanged
+for compatibility.
+
+For an older or broken installation whose upgrade command cannot complete,
+rerun the installer from the new repository:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/runovelhq/grex/main/bootstrap.sh | sudo bash
+```
 
 GREX stores configuration backups under `/var/backups/grex`. The setup wizard,
 configuration editor, restore flow, and upgrade flow create a backup before

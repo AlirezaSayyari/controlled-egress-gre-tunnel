@@ -1,0 +1,62 @@
+name: Upgrade issue
+description: Report an update check or `sudo grex upgrade` failure
+title: "[Upgrade]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Upgrade reports are especially useful during the repository migration.
+        Do not include secrets or unsanitized configuration.
+  - type: input
+    id: installed_version
+    attributes:
+      label: Installed version
+      placeholder: v1.2.4
+    validations:
+      required: true
+  - type: input
+    id: update_source
+    attributes:
+      label: Reported update source
+      description: Copy the `Update source` value from `sudo grex version` or `sudo grex check-upgrade`.
+      placeholder: runovelhq/grex
+    validations:
+      required: true
+  - type: input
+    id: operating_system
+    attributes:
+      label: Operating system
+      placeholder: Rocky Linux 9
+    validations:
+      required: true
+  - type: textarea
+    id: version_output
+    attributes:
+      label: Version and update-check output
+      description: Include sanitized output from `sudo grex version` and `sudo grex check-upgrade`.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: upgrade_output
+    attributes:
+      label: Upgrade output
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: compatibility
+    attributes:
+      label: Post-failure state
+      options:
+        - label: "`/etc/gre-tunnel.conf` still exists."
+        - label: "`/srv/GREX` still exists."
+        - label: The `grex` command still runs.
+        - label: The `gre-tunnel` service status was checked.
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I removed credentials and sensitive infrastructure details.
+          required: true

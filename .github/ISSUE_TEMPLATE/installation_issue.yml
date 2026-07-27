@@ -1,0 +1,62 @@
+name: Installation issue
+description: Report a problem with bootstrap or manual installation
+title: "[Install]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for clean installation failures. Remove secrets and
+        sensitive network information before submitting logs.
+  - type: input
+    id: install_source
+    attributes:
+      label: Installation source
+      description: Provide the bootstrap URL, clone URL, branch, tag, or commit used.
+      placeholder: https://raw.githubusercontent.com/runovelhq/grex/main/bootstrap.sh
+    validations:
+      required: true
+  - type: input
+    id: operating_system
+    attributes:
+      label: Operating system
+      placeholder: Debian 12
+    validations:
+      required: true
+  - type: dropdown
+    id: method
+    attributes:
+      label: Installation method
+      options:
+        - One-line bootstrap
+        - Manual clone and install
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command run
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Sanitized output
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Additional environment details
+      description: Include shell, architecture, systemd availability, and relevant package versions.
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I removed credentials, public IP addresses, and other sensitive values.
+          required: true
+        - label: I verified that `curl` and `tar` are installed.
+          required: true

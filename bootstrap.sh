@@ -2,8 +2,8 @@
 
 set -e
 
-REPO_USER="AlirezaSayyari"
-REPO_NAME="GREX"
+REPO_USER="runovelhq"
+REPO_NAME="grex"
 BRANCH="main"
 TMPDIR=$(mktemp -d)
 
@@ -40,8 +40,8 @@ echo "Downloading $REPO_USER/$REPO_NAME ($BRANCH)..."
 cd "$TMPDIR"
 curl -fsSL "$SCRIPT_URL" | tar -xz
 
-REPO_DIR="$TMPDIR/$REPO_NAME-$BRANCH"
-if [ ! -d "$REPO_DIR" ]; then
+REPO_DIR=$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/install.sh' \; -print | head -n 1)
+if [ -z "$REPO_DIR" ]; then
     echo "Failed to download repository archive."
     exit 1
 fi

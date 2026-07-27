@@ -1,0 +1,8 @@
+* @runovelhq/infrastructure
+
+/.github/ @runovelhq/infrastructure
+/bootstrap.sh @runovelhq/infrastructure
+/install.sh @runovelhq/infrastructure
+/manage.sh @runovelhq/infrastructure
+/gre-tunnel*.sh @runovelhq/infrastructure
+/gre-tunnel.service @runovelhq/infrastructure

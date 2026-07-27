@@ -7,9 +7,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="/etc/gre-tunnel.conf"
 BACKUP_DIR="/var/backups/grex"
-REPO_OWNER="AlirezaSayyari"
-REPO_NAME="GREX"
-REPO_BRANCH="main"
+PRIMARY_REPO="runovelhq/grex"
+FALLBACK_REPO="AlirezaSayyari/GREX"
 VERSION_FILE="$SCRIPT_DIR/VERSION"
 UPDATE_CACHE_FILE="/tmp/grex-latest-version"
 UPDATE_CACHE_TTL=3600
@@ -169,7 +168,12 @@ version_gt() {
     fi
 }
 
-fetch_latest_version() {
+is_usable_version() {
+    [[ "$1" =~ ^[vV]?[0-9]+(\.[0-9]+){1,2}([-+][0-9A-Za-z.-]+)?$ ]]
+}
+
+fetch_repo_latest_version() {
+    local repository=$1
     local api_url
     local response
     local latest_release
@@ -180,13 +184,19 @@ fetch_latest_version() {
         return 1
     fi
 
-    api_url="https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
+    api_url="https://api.github.com/repos/$repository/releases/latest"
     response=$(curl -fsSL --connect-timeout 3 --max-time 8 "$api_url" 2>/dev/null || true)
     latest_release=$(printf "%s" "$response" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+    if [ -n "$latest_release" ] && ! is_usable_version "$latest_release"; then
+        latest_release=""
+    fi
 
-    api_url="https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/tags"
+    api_url="https://api.github.com/repos/$repository/tags"
     response=$(curl -fsSL --connect-timeout 3 --max-time 8 "$api_url" 2>/dev/null || true)
     latest_tag=$(printf "%s" "$response" | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+    if [ -n "$latest_tag" ] && ! is_usable_version "$latest_tag"; then
+        latest_tag=""
+    fi
 
     latest=$latest_release
     if [ -z "$latest" ] || { [ -n "$latest_tag" ] && version_gt "$latest_tag" "$latest"; }; then
@@ -197,52 +207,88 @@ fetch_latest_version() {
     printf "%s" "$latest"
 }
 
+fetch_latest_update() {
+    local repository
+    local latest
+
+    for repository in "$PRIMARY_REPO" "$FALLBACK_REPO"; do
+        latest=$(fetch_repo_latest_version "$repository" || true)
+        if [ -n "$latest" ]; then
+            printf '%s\t%s\n' "$latest" "$repository"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+cache_update() {
+    local update=$1
+    printf '%s\n' "$update" > "$UPDATE_CACHE_FILE" 2>/dev/null || true
+}
+
+valid_cached_update() {
+    local update=$1
+    local version
+    local repository
+
+    IFS=$'\t' read -r version repository <<< "$update"
+    [ -n "$version" ] && { [ "$repository" = "$PRIMARY_REPO" ] || [ "$repository" = "$FALLBACK_REPO" ]; }
+}
+
 latest_version_cached() {
     local now
     local cache_mtime
-    local latest
+    local update
 
     now=$(date +%s)
     if [ -f "$UPDATE_CACHE_FILE" ]; then
         cache_mtime=$(stat -c %Y "$UPDATE_CACHE_FILE" 2>/dev/null || echo 0)
         if [ $((now - cache_mtime)) -lt "$UPDATE_CACHE_TTL" ]; then
-            tr -d '[:space:]' < "$UPDATE_CACHE_FILE"
-            return 0
+            update=$(head -n 1 "$UPDATE_CACHE_FILE")
+            if valid_cached_update "$update"; then
+                printf '%s\n' "$update"
+                return 0
+            fi
         fi
     fi
 
-    latest=$(fetch_latest_version || true)
-    [ -n "$latest" ] || return 1
-    printf "%s" "$latest" > "$UPDATE_CACHE_FILE" 2>/dev/null || true
-    printf "%s" "$latest"
+    update=$(fetch_latest_update || true)
+    [ -n "$update" ] || return 1
+    cache_update "$update"
+    printf '%s\n' "$update"
 }
 
 latest_version_fresh() {
-    local latest
+    local update
 
-    latest=$(fetch_latest_version || true)
-    [ -n "$latest" ] || return 1
-    printf "%s" "$latest" > "$UPDATE_CACHE_FILE" 2>/dev/null || true
-    printf "%s" "$latest"
+    update=$(fetch_latest_update || true)
+    [ -n "$update" ] || return 1
+    cache_update "$update"
+    printf '%s\n' "$update"
 }
 
 version_summary() {
     local mode=${1:-cached}
     local current
     local latest
+    local repository
+    local update
 
     current=$(installed_version)
     if [ "$mode" = "fresh" ]; then
-        latest=$(latest_version_fresh || true)
-        if [ -z "$latest" ]; then
-            latest=$(latest_version_cached || true)
+        update=$(latest_version_fresh || true)
+        if [ -z "$update" ]; then
+            update=$(latest_version_cached || true)
         fi
     else
-        latest=$(latest_version_cached || true)
+        update=$(latest_version_cached || true)
     fi
+    IFS=$'\t' read -r latest repository <<< "$update"
 
     echo "Installed version: $current"
     if [ -n "$latest" ]; then
+        echo "Update source:     $repository"
         echo "Latest version:    $latest"
         if [ "$current" != "unknown" ] && version_gt "$latest" "$current"; then
             echo "Update status:     update available"
@@ -250,6 +296,7 @@ version_summary() {
             echo "Update status:     up to date"
         fi
     else
+        echo "Update source:     unavailable"
         echo "Latest version:    unavailable"
         echo "Update status:     could not check GitHub"
     fi
@@ -263,6 +310,8 @@ upgrade_grex() {
     local source_dir
     local answer
     local installed_after_upgrade
+    local repository
+    local update
 
     if ! command -v curl >/dev/null 2>&1; then
         echo "curl is required for upgrade."
@@ -275,19 +324,19 @@ upgrade_grex() {
     fi
 
     current=$(installed_version)
-    latest=$(fetch_latest_version || true)
+    update=$(fetch_latest_update || true)
+    IFS=$'\t' read -r latest repository <<< "$update"
     if [ -z "$latest" ]; then
-        echo "Could not find a GitHub release/tag. Falling back to branch '$REPO_BRANCH'."
-        latest="$REPO_BRANCH"
-        source_url="https://github.com/$REPO_OWNER/$REPO_NAME/archive/refs/heads/$REPO_BRANCH.tar.gz"
-    else
-        source_url="https://github.com/$REPO_OWNER/$REPO_NAME/archive/refs/tags/$latest.tar.gz"
+        echo "Could not find a usable GitHub release/tag in $PRIMARY_REPO or $FALLBACK_REPO."
+        return 1
     fi
+    source_url="https://github.com/$repository/archive/refs/tags/$latest.tar.gz"
 
     echo "Installed version: $current"
     echo "Target version:    $latest"
+    echo "Update source:     $repository"
 
-    if [ "$current" != "unknown" ] && [ "$latest" != "$REPO_BRANCH" ] && ! version_gt "$latest" "$current"; then
+    if [ "$current" != "unknown" ] && ! version_gt "$latest" "$current"; then
         read -r -p "No newer version detected. Reinstall target anyway? (yes/no) [no]: " answer
         if ! [[ "${answer:-no}" =~ ^(yes|y|Y)$ ]]; then
             echo "Upgrade cancelled."
@@ -317,7 +366,7 @@ upgrade_grex() {
     (cd "$source_dir" && run_as_root bash install.sh)
     rm -f "$UPDATE_CACHE_FILE" 2>/dev/null || true
     installed_after_upgrade=$(installed_version)
-    if [ "$latest" != "$REPO_BRANCH" ] && [ "$installed_after_upgrade" != "$latest" ]; then
+    if [ "$installed_after_upgrade" != "$latest" ]; then
         echo "WARNING: Upgrade target was $latest but installed VERSION is $installed_after_upgrade."
         echo "The published tag/release may contain an outdated VERSION file."
         echo "Create a new release with VERSION set to the release tag, then run upgrade again."
