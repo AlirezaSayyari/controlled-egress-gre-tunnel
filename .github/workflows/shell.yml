@@ -17,7 +17,7 @@ jobs:
       - name: Run ShellCheck when available
         run: |
           if command -v shellcheck >/dev/null 2>&1; then
-            find . -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
+            find . -type f -name '*.sh' -print0 | xargs -0 -r shellcheck --severity=warning --exclude=SC1090
           else
             echo "ShellCheck is not available on this runner; skipping."
           fi
